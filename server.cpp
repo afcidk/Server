@@ -19,9 +19,12 @@ Server::Server(QWidget *parent) :
     //-------------------open file and read Data and sort Data---------------------------//
     QFile file("./rank.file");
     QList<Player> list;
+    list.push_back({"hi_buddy",19999});
     QTextStream stream(&file);
     if(!file.open(QIODevice::ReadOnly)){
         qDebug()<<"1cannot open rank.file";
+        file.open(QIODevice::WriteOnly);
+        file.close();
         return ;
     }
     QString pl; int sc;
@@ -39,6 +42,7 @@ Server::Server(QWidget *parent) :
     }
     QTextStream stream2(&file);
     foreach(Player i, list){
+        qDebug()<<i.name<<" "<<QString::number(i.score);
         stream2<<i.name<<" "<<QString::number(i.score)<<" ";
     }
     file.close();
@@ -57,11 +61,24 @@ void Server::connected()
 {
     ui->label->setText("connected");
     QTcpSocket *clientConnection = tcpServer->nextPendingConnection();
+    QList<Player> list;
     connect(clientConnection, SIGNAL(disconnected()), clientConnection, SLOT(deleteLater()));
+
+    //client will send name: score
+    //read Data from client
+    QDataStream in;
+    in.startTransaction();
+    int score;
+    QString name;
+    while(!in.atEnd()){
+        in>>name>>score;
+        list.push_back({name,score});
+    }
+
+    list.push_back({"hi_buddy",1999});
 
     //-------------------open file and read Data and sort Data---------------------------//
     QFile file("./rank.file");
-    QList<Player> list;
     QTextStream stream(&file);
     if(!file.open(QIODevice::ReadOnly)){
         qDebug()<<"1cannot open rank.file";
@@ -82,20 +99,13 @@ void Server::connected()
     }
     QTextStream stream2(&file);
     foreach(Player i, list){
+        qDebug()<<i.name<<" "<<QString::number(i.score);
         stream2<<i.name<<" "<<QString::number(i.score)<<" ";
     }
     file.close();
 
     //---------------------------------------------------------------------------------//
 
-    //client will only send score
-    //read Data from client
-    QDataStream in;
-    in.startTransaction();
-    int score;
-    while(!in.atEnd()){
-        in>>score;
-    }
 
 
 
