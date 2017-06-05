@@ -10,44 +10,10 @@ Server::Server(QWidget *parent) :
 
     tcpServer = new QTcpServer(this);
 
-    if(!tcpServer->listen(myIp,12345)){
+    if(!tcpServer->listen(myIp,55555)){
         QMessageBox::critical(this, "point server", "cannot listen!");
     }
-    qDebug()<<tcpServer->serverPort();
     connect(tcpServer, SIGNAL(newConnection()), this, SLOT(connected()));
-
-    //-------------------open file and read Data and sort Data---------------------------//
-    QFile file("./rank.file");
-    QList<Player> list;
-    list.push_back({"hi_buddy",19999});
-    QTextStream stream(&file);
-    if(!file.open(QIODevice::ReadOnly)){
-        qDebug()<<"1cannot open rank.file";
-        file.open(QIODevice::WriteOnly);
-        file.close();
-        return ;
-    }
-    QString pl; int sc;
-    while(!stream.atEnd()){
-        stream>>pl>>sc;
-        list.push_back({pl,sc});
-    }
-    std::sort(list.begin(),list.end());
-    file.close();
-
-    file.setFileName("./rank.file");
-    if(!file.open(QIODevice::Truncate|QIODevice::WriteOnly)){
-        qDebug()<<"2cannot open rank.file";
-        return ;
-    }
-    QTextStream stream2(&file);
-    foreach(Player i, list){
-        qDebug()<<i.name<<" "<<QString::number(i.score);
-        stream2<<i.name<<" "<<QString::number(i.score)<<" ";
-    }
-    file.close();
-
-    //---------------------------------------------------------------------------------//
 
 
 }
@@ -59,32 +25,33 @@ Server::~Server()
 
 void Server::connected()
 {
+    qDebug()<<"connected";
     ui->label->setText("connected");
-    QTcpSocket *clientConnection = tcpServer->nextPendingConnection();
-    QList<Player> list;
+    clientConnection = tcpServer->nextPendingConnection();
     connect(clientConnection, SIGNAL(disconnected()), clientConnection, SLOT(deleteLater()));
+    connect(clientConnection, SIGNAL(readyRead()), this, SLOT(readMessage()));
+}
 
-    //client will send name: score
-    //read Data from client
-    QDataStream in;
+void Server::readMessage()
+{
+    qDebug()<<"message in";
+    //read Data from client "name: score"
+    QDataStream in(clientConnection);
     in.startTransaction();
-    int score;
-    QString name;
-    while(!in.atEnd()){
-        in>>name>>score;
-        list.push_back({name,score});
-    }
+    QString name, score;
+    in>>name>>score;
+    list.push_back({name,score});
 
-    list.push_back({"hi_buddy",1999});
 
     //-------------------open file and read Data and sort Data---------------------------//
     QFile file("./rank.file");
-    QTextStream stream(&file);
+    QDataStream stream(&file);
     if(!file.open(QIODevice::ReadOnly)){
         qDebug()<<"1cannot open rank.file";
         return ;
     }
-    QString pl; int sc;
+
+    QString pl, sc;
     while(!stream.atEnd()){
         stream>>pl>>sc;
         list.push_back({pl,sc});
@@ -92,24 +59,34 @@ void Server::connected()
     std::sort(list.begin(),list.end());
     file.close();
 
-    file.setFileName("./rank.file");
-    if(!file.open(QIODevice::Truncate|QIODevice::WriteOnly)){
-        qDebug()<<"2cannot open rank.file";
+    QFile file2("./rank.file");
+    if(!file2.open(QIODevice::Truncate|QIODevice::WriteOnly)){
+        qDebug()<<"2cannot open rank.file2";
         return ;
     }
-    QTextStream stream2(&file);
+    QDataStream stream2(&file2);
     foreach(Player i, list){
-        qDebug()<<i.name<<" "<<QString::number(i.score);
-        stream2<<i.name<<" "<<QString::number(i.score)<<" ";
-    }
-    file.close();
 
+        qDebug()<<i.name<<" "<<i.score;
+        stream2<<i.name<<i.score;
+    }
+    file2.close();
     //---------------------------------------------------------------------------------//
 
-
-
-
     //send Result
+    QByteArray byte;
+    QDataStream out(&byte, QIODevice::WriteOnly);
 
+    foreach(Player i, list){
+        out<<i.name<<i.score;
+    }
+    qDebug()<<clientConnection->write(byte);
+
+    disconnect(clientConnection, SIGNAL(disconnected()), clientConnection, SLOT(deleteLater()));
+    disconnect(clientConnection, SIGNAL(readyRead()), this, SLOT(readMessage()));
     clientConnection->disconnectFromHost();
+    list.clear();
+    byte.clear();
 }
+
+

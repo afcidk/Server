@@ -32,18 +32,19 @@ private:
     const QHostAddress myIp;
 
     QTcpServer *tcpServer;
-
+    QTcpSocket *clientConnection;
     struct Player{
-        QString name;
-        int score;
+        QString name, score;
 
         bool operator< (const struct Player &t) const{
-            return score>t.score;
+            return score.toInt()>t.score.toInt();
         }
     };
+    QList<Player> list;
 
 private slots:
     void connected();
+    void readMessage();
 };
 
 #endif // SERVER_H
